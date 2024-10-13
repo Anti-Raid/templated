@@ -1,0 +1,9 @@
+[package]
+name = "templated"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+full_moon = { version = "1.1.0", features = ["serde", "luau", "roblox"] }
+tera = { git = "https://github.com/Anti-Raid/tera" }
