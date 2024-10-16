@@ -5,5 +5,6 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-full_moon = { version = "1.1.0", features = ["serde", "luau", "roblox"] }
 tera = { git = "https://github.com/Anti-Raid/tera" }
+darklua = { version = "0.13" }
+rand = { version = "0.8", features = [] }

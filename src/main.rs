@@ -1,11 +1,12 @@
-mod bundler;
-
 use clap::Parser;
 use std::io::Read;
 use std::io::Write; // 0.8
 
 /// Luau entrypoint
 const ENTRYPOINT_LUA: &str = include_str!("entrypoint.luau");
+
+// Darklua configuration
+const DARKLUA_CONFIG: &str = include_str!("darklua-config.json");
 
 /// Project name
 const TEMPLATED_NAME: &str = env!("CARGO_PKG_NAME");
@@ -17,8 +18,8 @@ const TEMPLATED_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum TemplatedOptions {
     /// Input can be file or stdin, output can be file or stdout
     WrapFile,
-    /// Bundle up a directory, input must be the path to a directory, output can be file or stdout
-    BundleDir,
+    /// Bundle up a single file using Anti-Raid compatible settings, input can be file or stdin, output can be file ONLY
+    BundleFile,
 }
 
 /// Set of utilities to handling AntiRaid Luau templating
@@ -60,6 +61,7 @@ fn read_input(input_loc: &str) -> Result<String, std::io::Error> {
     }
 }
 
+#[allow(dead_code)]
 /// Read input loc as a directory, returning a set of paths
 fn read_input_directory(input_loc: &str) -> Result<Vec<String>, std::io::Error> {
     let mut files = Vec::new();
@@ -124,53 +126,63 @@ fn main() {
 
             write_output(&args.output, &output).expect("Failed to write output");
         }
-        TemplatedOptions::BundleDir => {
-            println!("Reading directory {}", &args.input);
-            let dir_files = read_input_directory(&args.input).expect("Failed to read input");
+        TemplatedOptions::BundleFile => {
+            let input = read_input(&args.input).expect("Failed to read input");
 
-            let mut bundles = bundler::BundleList { files: Vec::new() };
+            // Write input to temp file for darklua
+            let (in_temp_file, out_path) = {
+                if input == "stdin" {
+                    let in_file_name = format!("templated-{}.in.luau", rand::random::<u64>());
+                    let in_temp_file = std::env::temp_dir().join(in_file_name.clone());
 
-            for (i, file) in dir_files.iter().enumerate() {
-                println!("[{}/{}] {}", i + 1, dir_files.len(), file);
+                    let mut file =
+                        std::fs::File::create(&in_temp_file).expect("Failed to create temp file");
 
-                let code = read_input(file).expect("Failed to read file");
-                let ast = full_moon::parse_fallible(&code, full_moon::LuaVersion::luau());
+                    file.write_all(input.as_bytes())
+                        .expect("Failed to write to temp file");
 
-                if !ast.errors().is_empty() {
-                    let mut errors = Vec::new();
+                    // Create output temp file
+                    let out_file_name = in_file_name.replace(".in.", ".out.");
+                    let out_temp_file = std::env::temp_dir().join(out_file_name);
 
-                    for error in ast.errors() {
-                        errors.push(format!("{}", error));
-                    }
+                    // Create file with empty contents
+                    let mut file = std::fs::File::create(&out_temp_file)
+                        .expect("Failed to create output temp file");
 
-                    panic!("Failed to parse file: {}", errors.join("\n"));
+                    file.write_all(b"")
+                        .expect("Failed to write to output temp file");
+
+                    (in_temp_file, out_temp_file)
+                } else {
+                    let in_path = std::path::PathBuf::from(args.input.clone());
+                    let out_path = std::path::PathBuf::from(args.output.clone());
+                    (in_path.clone(), out_path)
                 }
+            };
 
-                let ast = ast.into_ast();
-                println!("AST-Str: {}", ast.to_string());
+            // Write darklua config to temp file
+            let darklua_config_file = std::env::temp_dir().join("darklua-config.json");
 
-                let bundled_file = bundler::BundledFile {
-                    file_path: file.to_string(),
-                    ast,
-                };
+            let mut file = std::fs::File::create(&darklua_config_file)
+                .expect("Failed to create darklua config file");
 
-                bundles.files.push(bundled_file);
-            }
+            file.write_all(DARKLUA_CONFIG.as_bytes())
+                .expect("Failed to write darklua config file");
 
-            println!("Applying transformations");
+            // Run darklua
+            let resources = darklua_core::Resources::from_file_system();
 
-            println!("SymbolMangle");
-            bundles = bundler::apply_symbol_mangling(bundles);
+            let process_options = darklua_core::Options::new(&in_temp_file)
+                .with_output(&out_path)
+                .with_generator_override(darklua_core::GeneratorParameters::Readable {
+                    column_span: 4,
+                })
+                .fail_fast()
+                .with_configuration_at(&darklua_config_file);
 
-            println!("ImportInline");
-
-            bundles = bundler::apply_import_inling(bundles);
-
-            for (i, file) in bundles.files.iter().enumerate() {
-                println!("[{}/{}] {}", i + 1, bundles.files.len(), file.file_path);
-
-                println!("AST-Str: {}", file.ast.to_string());
-            }
+            darklua_core::process(&resources, process_options)
+                .result()
+                .expect("Failed to run darklua");
         }
     }
 }

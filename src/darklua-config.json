@@ -1,0 +1,9 @@
+{
+    "bundle": {
+        "require_mode": "path",
+        "excludes": [
+            "@lune/**",
+            "@antiraid/**"
+        ]
+    }
+}
