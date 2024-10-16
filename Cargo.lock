@@ -715,6 +715,7 @@ checksum = "707907fe3c25f5424cce2cb7e1cbcafee6bdbe735ca90ef77c29e84591e5b9da"
 dependencies = [
  "equivalent",
  "hashbrown 0.15.0",
+ "serde",
 ]
 
 [[package]]
@@ -1429,7 +1430,10 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "darklua",
+ "indexmap 2.6.0",
  "rand",
+ "serde",
+ "serde_json",
  "tera",
 ]
 

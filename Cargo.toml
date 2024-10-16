@@ -8,3 +8,6 @@ clap = { version = "4", features = ["derive"] }
 tera = { git = "https://github.com/Anti-Raid/tera" }
 darklua = { version = "0.13" }
 rand = { version = "0.8", features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+indexmap = { version = "2", features = ["serde"] }

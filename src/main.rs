@@ -1,4 +1,5 @@
 use clap::Parser;
+use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::io::Write; // 0.8
 
@@ -14,9 +15,20 @@ const TEMPLATED_NAME: &str = env!("CARGO_PKG_NAME");
 /// Version of templated
 const TEMPLATED_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// A pragma used in templating
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TemplatePragma {
+    /// Language to use
+    lang: String,
+
+    /// Rest of the data
+    #[serde(flatten)]
+    pub extra_info: indexmap::IndexMap<String, serde_json::Value>,
+}
+
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
 pub enum TemplatedOptions {
-    /// Input can be file or stdin, output can be file or stdout
+    /// Input can be file or stdin, output can be file or stdout. If extra_data is provided, it will be used in the template pragma
     WrapFile,
     /// Bundle up a single file using Anti-Raid compatible settings, input can be file or stdin, output can be file ONLY
     BundleFile,
@@ -37,6 +49,10 @@ struct Args {
     /// Output, valid parameter depends on operation
     #[arg(short, long)]
     output: String,
+
+    /// If operation supports it, this is the extra data to take into account
+    #[arg(short, long)]
+    extra_data: Option<String>,
 }
 
 /// Read input loc as a file or stdin, returning the contents
@@ -119,6 +135,27 @@ fn main() {
             context
                 .insert("proj_version", TEMPLATED_VERSION)
                 .expect("Failed to insert version");
+
+            let mut pragma = TemplatePragma {
+                lang: "lua".to_string(),
+                extra_info: indexmap::IndexMap::new(),
+            };
+
+            if let Some(extra_data) = args.extra_data {
+                let extra_data: indexmap::IndexMap<String, serde_json::Value> =
+                    serde_json::from_str(&extra_data).expect("Failed to parse extra data");
+
+                for (key, value) in extra_data {
+                    pragma.extra_info.insert(key.clone(), value.clone());
+                }
+            }
+
+            let pragma = serde_json::to_string(&pragma).expect("Failed to serialize pragma");
+
+            // Add pragma
+            context
+                .insert("pragma", &pragma)
+                .expect("Failed to insert pragma");
 
             let output = tera
                 .render_str(ENTRYPOINT_LUA, &context)

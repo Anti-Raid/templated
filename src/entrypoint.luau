@@ -1,4 +1,4 @@
-@pragma {"lang":"lua"}
+@pragma {{pragma}}
 function (args) 
     --[[
         {{proj_name}} {{proj_version}}

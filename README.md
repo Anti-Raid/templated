@@ -8,6 +8,8 @@ To wrap a file or bundle into Anti-Raid compatible format, use the ``wrap-file``
 ./out/templated --input abc/main.luau --output abc/test.luau wrap-file
 ```
 
+You can provide extra info to the template pragma with the ``--extra-data`` flag which must contain a valid JSON object.
+
 ## bundle-file
 
 To bundle a set of files making up a Luau module script, you can use the ``bundle-file`` operation:
